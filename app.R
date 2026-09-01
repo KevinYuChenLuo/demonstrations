@@ -4,52 +4,65 @@ library(bslib)
 
 # 1. UI Definition
 ui <- page_fillable(
-  # Use bslib to create a dark theme that matches the reference image
+  # Clean, modern light theme
   theme = bs_theme(
-    bg = "#121212", 
-    fg = "#FFFFFF", 
-    primary = "#4793ff",
+    version = 5,
+    bg = "#F8F9FA",
+    fg = "#212529",
+    primary = "#0D6EFD",
     base_font = font_google("Inter")
   ),
   
   div(
-    style = "max-width: 900px; margin: 0 auto; padding: 20px;",
+    style = "max-width: 950px; margin: 0 auto; padding: 24px;",
     
-    h3("Derivative: Secant to Tangent Limit", style = "margin-bottom: 20px;"),
+    h3("Derivative: Secant to Tangent Limit", 
+       style = "font-weight: 700; color: #1E293B; margin-bottom: 24px; text-align: center;"),
     
-    # The Plot
+    # Plot Card
     card(
       full_screen = TRUE,
-      style = "background-color: #1a1a1a; border: none;",
-      plotOutput("calcPlot", height = "450px")
+      style = "background-color: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);",
+      plotOutput("calcPlot", height = "480px")
     ),
     
     br(),
     
-    # Readouts for Slopes
+    # Readouts for Slopes and Distance h
     layout_columns(
-      col_widths = c(6, 6),
+      col_widths = c(4, 4, 4),
+      
+      # Distance h Readout
       div(
-        style = "text-align: center; border-right: 1px solid #333;", 
-        h6("SECANT SLOPE", style = "color: #b3b3b3; letter-spacing: 1px; font-size: 0.8rem;"), 
-        h3(textOutput("secant_slope"), style = "font-weight: bold;")
+        style = "text-align: center; border-right: 1px solid #E2E8F0;",
+        h6("DISTANCE (h = x_Q - x_P)", style = "color: #64748B; letter-spacing: 0.5px; font-size: 0.75rem; font-weight: 600;"),
+        h3(textOutput("h_val"), style = "font-weight: 700; color: #0EA5E9;")
       ),
+      
+      # Secant Slope Readout
       div(
-        style = "text-align: center;", 
-        h6("INSTANTANEOUS SLOPE", style = "color: #b3b3b3; letter-spacing: 1px; font-size: 0.8rem;"), 
-        h3(textOutput("tangent_slope"), style = "font-weight: bold; color: #a6c8ff;")
+        style = "text-align: center; border-right: 1px solid #E2E8F0;",
+        h6("SECANT SLOPE (Δy / h)", style = "color: #64748B; letter-spacing: 0.5px; font-size: 0.75rem; font-weight: 600;"),
+        h3(textOutput("secant_slope"), style = "font-weight: 700; color: #2563EB;")
+      ),
+      
+      # Instantaneous Slope at P
+      div(
+        style = "text-align: center;",
+        h6("INSTANTANEOUS SLOPE AT P", style = "color: #64748B; letter-spacing: 0.5px; font-size: 0.75rem; font-weight: 600;"),
+        h3(textOutput("tangent_slope"), style = "font-weight: 700; color: #F59E0B;")
       )
     ),
     
-    br(), hr(style = "border-color: #333;"), br(),
+    br(), hr(style = "border-color: #E2E8F0;"), br(),
     
-    # Interactive Controls
+    # Interactive Controls: Point P and Point Q
     layout_columns(
       col_widths = c(6, 6),
-      sliderInput("dx", "Distance (Δx)", 
-                  min = 0.001, max = 2.0, value = 2.0, step = 0.01, width = "100%"),
-      sliderInput("x_base", "Point (x)", 
-                  min = -1.0, max = 2.0, value = 1.0, step = 0.1, width = "100%")
+      sliderInput("x_p", "Point P (x₁)", 
+                  min = -10, max = 10, value = 1.0, step = 0.1, width = "100%"),
+      sliderInput("x_q", "Point Q (x₂)", 
+                  min = -10, max = 10, value = 3.0, step = 0.1, width = "100%")
     )
   )
 )
@@ -57,88 +70,103 @@ ui <- page_fillable(
 # 2. Server Logic
 server <- function(input, output, session) {
   
-  # Define the core function and its derivative
   f <- function(x) x^2
-  f_prime <- function(x) 2*x
+  f_prime <- function(x) 2 * x
   
-  # Calculate Secant Slope dynamically
+  # Distance h
+  output$h_val <- renderText({
+    h <- input$x_q - input$x_p
+    sprintf("%.2f", h)
+  })
+  
+  # Calculate Secant Slope dynamically (handles division by zero when h = 0)
   output$secant_slope <- renderText({
-    x <- input$x_base
-    dx <- input$dx
-    slope <- (f(x + dx) - f(x)) / dx
-    sprintf("%.3f", slope)
+    x_p <- input$x_p
+    x_q <- input$x_q
+    h <- x_q - x_p
+    
+    if (abs(h) < 1e-4) {
+      "Undefined (h = 0)"
+    } else {
+      slope <- (f(x_q) - f(x_p)) / h
+      sprintf("%.3f", slope)
+    }
   })
   
-  # Calculate Tangent (Instantaneous) Slope dynamically
+  # Calculate Instantaneous Slope at P
   output$tangent_slope <- renderText({
-    sprintf("%.3f", f_prime(input$x_base))
+    sprintf("%.3f", f_prime(input$x_p))
   })
   
-  # Render the ggplot
+  # Render the light-themed ggplot
   output$calcPlot <- renderPlot({
-    x0 <- input$x_base
-    dx <- input$dx
-    x1 <- x0 + dx
+    xp <- input$x_p
+    xq <- input$x_q
+    yp <- f(xp)
+    yq <- f(xq)
+    h <- xq - xp
     
-    y0 <- f(x0)
-    y1 <- f(x1)
+    # Tangent line at P (y = mx + b)
+    tan_slope <- f_prime(xp)
+    tan_intercept <- yp - tan_slope * xp
     
-    # Calculate geometric lines (y = mx + b)
-    sec_slope <- (y1 - y0) / dx
-    sec_intercept <- y0 - sec_slope * x0
-    
-    tan_slope <- f_prime(x0)
-    tan_intercept <- y0 - tan_slope * x0
-    
-    # Build the base plot
-    p <- ggplot(data.frame(x = c(-2.5, 3.5)), aes(x)) +
-      # The main curve (Parabola)
-      stat_function(fun = f, color = "#a6c8ff", linewidth = 1.2) +
+    # Base Plot
+    p <- ggplot(data.frame(x = c(-10.5, 10.5)), aes(x)) +
+      # Function Curve
+      stat_function(fun = f, color = "#2563EB", linewidth = 1.2) +
       
-      # The base Point P
-      geom_point(aes(x = x0, y = y0), color = "#4793ff", size = 4) +
-      annotate("text", x = x0 - 0.4, y = y0 + 0.3, 
-               label = sprintf("P (%.1f, %.1f)", x0, y0), 
-               color = "white", face = "bold") +
-      
-      # The Tangent Line (Yellow Dashed)
+      # Tangent Line at P (Dashed Amber)
       geom_abline(intercept = tan_intercept, slope = tan_slope, 
-                  color = "#ffb347", linetype = "dashed", linewidth = 1) +
+                  color = "#F59E0B", linetype = "dashed", linewidth = 1) +
       
-      # Theme and grid styling to match reference
-      theme_minimal() +
+      # Base Point P
+      geom_point(aes(x = xp, y = yp), color = "#F59E0B", size = 4) +
+      annotate("text", x = xp, y = yp + 6, 
+               label = sprintf("P (%.1f, %.1f)", xp, yp), 
+               color = "#B45309", fontface = "bold", size = 4.5) +
+      
+      # Clean Light Theme
+      theme_minimal(base_size = 13) +
       theme(
-        plot.background = element_rect(fill = "#1a1a1a", color = NA),
-        panel.background = element_rect(fill = "#1a1a1a", color = NA),
-        panel.grid.major = element_line(color = "#333333", linewidth = 0.5),
-        panel.grid.minor = element_line(color = "#222222", linewidth = 0.5),
-        axis.text = element_text(color = "#888888", face = "bold"),
-        axis.title = element_blank() # Hiding standard axis titles to match image
+        plot.background = element_rect(fill = "#FFFFFF", color = NA),
+        panel.background = element_rect(fill = "#FFFFFF", color = NA),
+        panel.grid.major = element_line(color = "#F1F5F9", linewidth = 0.8),
+        panel.grid.minor = element_line(color = "#F8FAFC", linewidth = 0.5),
+        axis.text = element_text(color = "#64748B", face = "bold"),
+        axis.title = element_text(color = "#334155", face = "bold")
       ) +
-      coord_cartesian(ylim = c(-0.5, 6), xlim = c(-2, 3.5))
+      labs(x = "x", y = "f(x) = x²") +
+      coord_cartesian(xlim = c(-10.5, 10.5), ylim = c(-5, 105))
     
-    # Add Secant line and Delta indicators if dx is large enough
-    if(dx > 0.05) {
-      p <- p + 
-        # Secondary Point
-        geom_point(aes(x = x1, y = y1), color = "#4793ff", size = 3) +
-        # Secant Line (Blue Solid/Dashed)
+    # Draw Point Q, Secant Line, and Distance Indicators when P and Q are distinct
+    if (abs(h) >= 0.05) {
+      sec_slope <- (yq - yp) / h
+      sec_intercept <- yp - sec_slope * xp
+      
+      p <- p +
+        # Secant Line (Blue Solid)
         geom_abline(intercept = sec_intercept, slope = sec_slope, 
-                    color = "#a6c8ff", linewidth = 0.8) +
-        # Horizontal Delta x line
-        geom_segment(aes(x = x0, y = y0, xend = x1, yend = y0), 
-                     color = "#4793ff", linetype = "dotted", linewidth = 0.8) +
-        # Vertical Delta y line
-        geom_segment(aes(x = x1, y = y0, xend = x1, yend = y1), 
-                     color = "#4793ff", linetype = "dotted", linewidth = 0.8) +
-        # Delta x Label
-        annotate("text", x = x0 + dx/2, y = y0 - 0.4, 
-                 label = sprintf("Δx = %.2f", dx), color = "#4793ff")
+                    color = "#38BDF8", linewidth = 0.9) +
+        # Horizontal Δx (h) line
+        geom_segment(aes(x = xp, y = yp, xend = xq, yend = yp), 
+                     color = "#0284C7", linetype = "dotted", linewidth = 0.8) +
+        # Vertical Δy line
+        geom_segment(aes(x = xq, y = yp, xend = xq, yend = yq), 
+                     color = "#0284C7", linetype = "dotted", linewidth = 0.8) +
+        # Point Q
+        geom_point(aes(x = xq, y = yq), color = "#0284C7", size = 3.5) +
+        annotate("text", x = xq, y = yq + 6, 
+                 label = sprintf("Q (%.1f, %.1f)", xq, yq), 
+                 color = "#0369A1", fontface = "bold", size = 4.5) +
+        # h Label
+        annotate("text", x = (xp + xq) / 2, y = yp - 4, 
+                 label = sprintf("h = %.2f", h), 
+                 color = "#0284C7", fontface = "bold", size = 4)
     }
     
     p
   })
 }
 
-# 3. Run the application 
+# 3. Run application
 shinyApp(ui = ui, server = server)
